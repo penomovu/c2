@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client-Side Censoring Demo</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .demo-section {
+            margin: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .demo-title {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+        
+        .demo-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .demo-output {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .censoring-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .option-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .option-card h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-top: 15px;
+        }
+        
+        .code-block code {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 Client-Side Censoring Demo</h1>
+            <p class="subtitle">See how passwords are securely censored before display</p>
+        </header>
+
+        <div class="demo-section">
+            <h2 class="demo-title">Live Password Censoring</h2>
+            <p>Type any text to see it censored in real-time:</p>
+            <input 
+                type="text" 
+                id="liveInput" 
+                class="demo-input" 
+                placeholder="Type something..."
+            >
+            <div class="demo-output" id="liveOutput">Censored text will appear here...</div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">Censoring Methods</h2>
+            <p>Different ways to censor sensitive information:</p>
+            
+            <div class="censoring-options">
+                <div class="option-card">
+                    <h4>🔹 Standard Censoring</h4>
+                    <p>Shows first and last character</p>
+                    <div class="demo-output" id="method1">p•••••••d</div>
+                    <small>Example: password → p•••••••d</small>
+                </div>
+                
+                <div class="option-card">
+                    <h4>🔹 Full Censoring</h4>
+                    <p>All characters hidden</p>
+                    <div class="demo-output" id="method2">••••••••</div>
+                    <small>Example: password → ••••••••</small>
+                </div>
+                
+                <div class="option-card">
+                    <h4>🔹 Length Obfuscation</h4>
+                    <p>Fixed length for security</p>
+                    <div class="demo-output" id="method3">••••••••••••</div>
+                    <small>Example: password → •••••••••••• (always 12)</small>
+                </div>
+                
+                <div class="option-card">
+                    <h4>🔹 Hash Preview</h4>
+                    <p>Shows hash prefix</p>
+                    <div class="demo-output" id="method4">5BAA6...</div>
+                    <small>Example: password → 5BAA6... (SHA-1)</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">Security Benefits</h2>
+            <ul style="line-height: 2;">
+                <li><strong>Shoulder Surfing Protection:</strong> Prevents others from seeing passwords over your shoulder</li>
+                <li><strong>Screenshot Safety:</strong> Censored passwords in screenshots</li>
+                <li><strong>Screen Recording:</strong> Safe even if screen is being recorded</li>
+                <li><strong>Presentation Mode:</strong> Can demo the tool publicly without exposing passwords</li>
+                <li><strong>User Privacy:</strong> Respects user privacy by not displaying full passwords</li>
+            </ul>
+        </div>
+
+        <div class="demo-section">
+            <h2 class="demo-title">Implementation Code</h2>
+            <p>Here's how the censoring works:</p>
+            
+            <div class="code-block">
+<code>function censorPassword(password) {
+    if (!password || password.length === 0) {
+        return '';
+    }
+    
+    // For very short passwords, fully censor
+    if (password.length <= 2) {
+        return '•'.repeat(password.length);
+    }
+    
+    // Standard: Show first and last character
+    const firstChar = password[0];
+    const lastChar = password[password.length - 1];
+    const middleLength = password.length - 2;
+    
+    return firstChar + '•'.repeat(middleLength) + lastChar;
+}
+
+// Alternative methods:
+
+// Full censoring
+function censorFull(password) {
+    return '•'.repeat(password.length);
+}
+
+// Fixed length obfuscation
+function censorFixed(password) {
+    return '•'.repeat(12);
+}
+
+// Hash preview
+function censorHash(password) {
+    const hash = sha1(password);
+    return hash.substring(0, 5) + '...';
+}</code>
+            </div>
+        </div>
+
+        <div style="text-align: center; padding: 30px;">
+            <a href="/" class="btn-primary" style="display: inline-block; text-decoration: none;">
+                ← Back to Password Checker
+            </a>
+        </div>
+    </div>
+
+    <script src="sha1.js"></script>
+    <script>
+        function censorPassword(password) {
+            if (!password || password.length === 0) {
+                return '';
+            }
+            
+            if (password.length <= 2) {
+                return '•'.repeat(password.length);
+            }
+            
+            const firstChar = password[0];
+            const lastChar = password[password.length - 1];
+            const middleLength = password.length - 2;
+            
+            return firstChar + '•'.repeat(middleLength) + lastChar;
+        }
+
+        function censorFull(password) {
+            return password ? '•'.repeat(password.length) : '';
+        }
+
+        function censorFixed(password) {
+            return password ? '•'.repeat(12) : '';
+        }
+
+        function censorHash(password) {
+            if (!password) return '';
+            try {
+                const hash = sha1(password);
+                return hash.substring(0, 5) + '...';
+            } catch (e) {
+                return '•••••...';
+            }
+        }
+
+        const liveInput = document.getElementById('liveInput');
+        const liveOutput = document.getElementById('liveOutput');
+
+        liveInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (value) {
+                liveOutput.textContent = censorPassword(value);
+                
+                document.getElementById('method1').textContent = censorPassword(value);
+                document.getElementById('method2').textContent = censorFull(value);
+                document.getElementById('method3').textContent = censorFixed(value);
+                document.getElementById('method4').textContent = censorHash(value);
+            } else {
+                liveOutput.textContent = 'Censored text will appear here...';
+                document.getElementById('method1').textContent = 'p•••••••d';
+                document.getElementById('method2').textContent = '••••••••';
+                document.getElementById('method3').textContent = '••••••••••••';
+                document.getElementById('method4').textContent = '5BAA6...';
+            }
+        });
+
+        console.log('Client-side censoring demo loaded');
+    </script>
+</body>
+</html>

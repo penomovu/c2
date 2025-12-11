@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Leak Checker - Have I Been Pwned Clone</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 Password Leak Checker</h1>
+            <p class="subtitle">Check if your password has been compromised in a data breach</p>
+        </header>
+
+        <div class="info-box">
+            <h3>How it works:</h3>
+            <ul>
+                <li>Your password is hashed locally using SHA-1</li>
+                <li>Only the first 5 characters of the hash are sent to our server (k-anonymity)</li>
+                <li>Your actual password never leaves your device</li>
+                <li>Passwords are automatically censored for your security</li>
+            </ul>
+        </div>
+
+        <div class="search-section">
+            <div class="input-group">
+                <input 
+                    type="password" 
+                    id="passwordInput" 
+                    placeholder="Enter password to check..."
+                    autocomplete="off"
+                >
+                <button id="togglePassword" class="btn-icon" title="Show/Hide Password">
+                    👁️
+                </button>
+            </div>
+            <button id="checkButton" class="btn-primary">Check Password</button>
+        </div>
+
+        <div id="results" class="results hidden">
+            <div id="resultContent"></div>
+        </div>
+
+        <div class="stats-section">
+            <h3>Database Statistics</h3>
+            <div id="stats" class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalPasswords">Loading...</div>
+                    <div class="stat-label">Leaked Passwords</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalBreaches">Loading...</div>
+                    <div class="stat-label">Known Breaches</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="lastUpdated">Loading...</div>
+                    <div class="stat-label">Last Updated</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>⚠️ This tool is for educational purposes. Always use strong, unique passwords for each account.</p>
+            <p class="privacy-note">Privacy-First: Your password is never transmitted to our servers in plain text.</p>
+            <p style="margin-top: 15px;">
+                <a href="/demo" style="color: #667eea; text-decoration: none; font-weight: 600;">
+                    🎨 View Client-Side Censoring Demo →
+                </a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="sha1.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
