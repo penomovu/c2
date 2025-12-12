@@ -1,51 +1,70 @@
 // src/App.js
 import React, { useState, useEffect, Suspense } from 'react';
 import Header from './components/Header';
-import PasswordChecker from './components/PasswordChecker';
+import ComprehensiveSearch from './components/ComprehensiveSearch';
 import StatsSection from './components/StatsSection';
 import SecurityInfo from './components/SecurityInfo';
 import Footer from './components/Footer';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ApiService } from './services/ApiService';
-import { formatNumber, formatDate } from './utils/formatters';
 
 function App() {
   const [stats, setStats] = useState({
-    total_passwords: 0,
-    total_breaches: 0,
-    last_updated: null
+    passwords: 0,
+    emails: 0,
+    usernames: 0,
+    ips: 0,
+    total_records: 0,
+    by_type: {},
+    recent_activity: {}
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sources, setSources] = useState([]);
 
   useEffect(() => {
-    loadStats();
+    loadData();
   }, []);
 
-  const loadStats = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const statsData = await ApiService.getStats();
+      
+      // Load statistics and sources in parallel
+      const [statsData, sourcesData] = await Promise.all([
+        ApiService.getStats(),
+        ApiService.getSources().catch(() => ({ sources: [] }))
+      ]);
+      
       setStats(statsData);
+      setSources(sourcesData.sources || []);
     } catch (err) {
-      console.error('Failed to load stats:', err);
-      setError('Failed to load database statistics');
+      console.error('Failed to load data:', err);
+      setError('Failed to load breach database information');
       // Set fallback stats
       setStats({
-        total_passwords: 613584246,
-        total_breaches: 684,
-        last_updated: new Date().toISOString()
+        passwords: 613584246,
+        emails: 12000000000,
+        usernames: 500000000,
+        ips: 100000000,
+        total_records: 13206584246,
+        by_type: {
+          email: { sources: 10, estimated_records: 12000000000 },
+          password: { sources: 1, estimated_records: 8450000000 },
+          username: { sources: 5, estimated_records: 500000000 }
+        },
+        recent_activity: { email: 1200, password: 800, username: 300, ip: 50 }
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePasswordCheckComplete = () => {
-    // Optionally refresh stats after password check
-    setTimeout(loadStats, 1000);
+  const handleSearchComplete = () => {
+    // Refresh stats after search
+    setTimeout(loadData, 2000);
   };
 
   return (
@@ -57,9 +76,10 @@ function App() {
           <div className="container">
             <SecurityInfo />
             
-            <Suspense fallback={<LoadingSpinner />}>
-              <PasswordChecker 
-                onCheckComplete={handlePasswordCheckComplete}
+            <Suspense fallback={<LoadingSpinner message="Loading breach checker..." />}>
+              <ComprehensiveSearch 
+                sources={sources}
+                onSearchComplete={handleSearchComplete}
               />
             </Suspense>
             
@@ -67,7 +87,7 @@ function App() {
               stats={stats} 
               loading={loading} 
               error={error}
-              onRetry={loadStats}
+              onRetry={loadData}
             />
           </div>
         </main>

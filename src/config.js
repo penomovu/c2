@@ -49,6 +49,45 @@ export const config = {
     demoMode: process.env.DEMO_MODE !== 'false',
     statistics: process.env.STATISTICS_ENABLED !== 'false',
     passwordAddition: process.env.PASSWORD_ADDITION_ENABLED === 'true',
-    exportData: process.env.EXPORT_DATA_ENABLED === 'true'
+    exportData: process.env.EXPORT_DATA_ENABLED === 'true',
+    multiSearch: process.env.MULTI_SEARCH_ENABLED === 'true',
+    emailSearch: process.env.EMAIL_SEARCH_ENABLED === 'true',
+    usernameSearch: process.env.USERNAME_SEARCH_ENABLED === 'true',
+    ipSearch: process.env.IP_SEARCH_ENABLED === 'true',
+    deepSearch: process.env.DEEP_SEARCH_ENABLED === 'true',
+    batchSearch: process.env.BATCH_SEARCH_ENABLED === 'true',
+    breachTimeline: process.env.BREACH_TIMELINE_ENABLED === 'true'
+  },
+
+  // Search configuration
+  search: {
+    maxBatchSize: parseInt(process.env.MAX_BATCH_SIZE, 10) || 100,
+    defaultTimeout: parseInt(process.env.SEARCH_TIMEOUT, 10) || 30000, // 30 seconds
+    maxResultsPerQuery: parseInt(process.env.MAX_RESULTS_PER_QUERY, 10) || 1000,
+    enableFuzzySearch: process.env.FUZZY_SEARCH_ENABLED === 'true',
+    maxSearchDepth: parseInt(process.env.MAX_SEARCH_DEPTH, 10) || 10
+  },
+
+  // Database sources configuration
+  databases: {
+    autoImport: process.env.AUTO_IMPORT_DATABASES === 'true',
+    validation: process.env.DATABASE_VALIDATION_ENABLED !== 'false',
+    deduplication: process.env.DATABASE_DEDUPLICATION_ENABLED !== 'false',
+    maxConcurrentImports: parseInt(process.env.MAX_CONCURRENT_IMPORTS, 10) || 5,
+    supportedFormats: ['csv', 'json', 'txt', 'sql'],
+    sourceUrls: {
+      // Major breach databases (examples - would need real sources)
+      rockyou2021: process.env.ROCKYOU_2021_URL || '',
+      Collection1: process.env.COLLECTION1_URL || '',
+      Collection2_5: process.env.COLLECTION2_5_URL || '',
+      breachCompilation: process.env.BREACH_COMPILATION_URL || '',
+      linkedin: process.env.LINKEDIN_BREACH_URL || '',
+      dropbox: process.env.DROPBOX_BREACH_URL || '',
+      adobe: process.env.ADOBE_BREACH_URL || '',
+      yahoo: process.env.YAHOO_BREACH_URL || '',
+      myspace: process.env.MYSPACE_BREACH_URL || '',
+      lastfm: process.env.LASTFM_BREACH_URL || '',
+      AshleyMadison: process.env.ASHLEY_MADISON_URL || ''
+    }
   }
 };
