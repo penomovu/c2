@@ -18,7 +18,9 @@
     "lint": "eslint src/**/*.{js,jsx}",
     "lint:fix": "eslint src/**/*.{js,jsx} --fix", 
     "format": "prettier --write src/**/*.{js,jsx,css,html}",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:fetch-breaches": "node scripts/fetch_breaches.js",
+    "db:import": "node scripts/import_file.js"
   },
   "keywords": ["password", "security", "hibp", "k-anonymity", "web-app", "react"],
   "author": "Password Leak Checker", 
