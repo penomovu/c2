@@ -20,10 +20,13 @@ class BreachCheckerApp {
     this.port = config.port;
     this.database = null;
     this.breachSources = new Map();
+
     this.initMiddleware();
-    this.initDatabase();
+
+    // Initialization is async; keep a promise so we can await it before listening.
+    this.ready = this.initDatabase();
+
     this.initRoutes();
-    this.setupPeriodicMaintenance();
   }
 
   initMiddleware() {
@@ -75,20 +78,30 @@ class BreachCheckerApp {
 
   async initDatabase() {
     try {
-      await fs.mkdir('data', { recursive: true });
-      await fs.mkdir('backups', { recursive: true });
-      
-      this.database = new Database('data/breachchecker.db');
-      
+      const dbPath = path.isAbsolute(config.database.path)
+        ? config.database.path
+        : path.resolve(__dirname, config.database.path);
+
+      const backupDir = path.isAbsolute(config.database.backup)
+        ? config.database.backup
+        : path.resolve(__dirname, config.database.backup);
+
+      await fs.mkdir(path.dirname(dbPath), { recursive: true });
+      await fs.mkdir(backupDir, { recursive: true });
+
+      this.database = new Database(dbPath);
+
       // Enable WAL mode for better concurrency
       this.database.pragma('journal_mode = WAL');
       this.database.pragma('synchronous = NORMAL');
       this.database.pragma('cache_size = -64000'); // 64MB cache
       this.database.pragma('temp_store = memory');
-      
+
       await this.createDatabaseSchema();
       await this.loadBreachSources();
-      
+
+      this.setupPeriodicMaintenance();
+
       console.log('✅ Database initialized successfully');
     } catch (error) {
       console.error('❌ Database initialization failed:', error);
@@ -199,6 +212,24 @@ class BreachCheckerApp {
       )
     `);
 
+    // Global statistics table (legacy-compatible)
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS breach_stats (
+        id INTEGER PRIMARY KEY,
+        total_passwords INTEGER,
+        total_breaches INTEGER,
+        last_updated TEXT
+      )
+    `);
+
+    this.database.exec(`
+      INSERT OR IGNORE INTO breach_stats (id, total_passwords, total_breaches, last_updated)
+      VALUES (1, 0, 0, datetime('now'))
+    `);
+
+    // Handle upgrades from older/legacy DB schemas.
+    this.applySchemaMigrations();
+
     // Create indexes for performance
     this.database.exec(`
       CREATE INDEX IF NOT EXISTS idx_passwords_prefix 
@@ -251,6 +282,57 @@ class BreachCheckerApp {
       (id, name, type, description, severity, date_added)
       VALUES ('global', 'Global Statistics', 'meta', 'System-wide statistics', 'low', datetime('now'))
     `);
+  }
+
+  sanitizeIdentifier(value) {
+    return /^[A-Za-z0-9_]+$/.test(value) ? value : null;
+  }
+
+  getTableColumns(tableName) {
+    const safeName = this.sanitizeIdentifier(tableName);
+    if (!safeName) return null;
+
+    try {
+      const rows = this.database.prepare(`PRAGMA table_info(${safeName})`).all();
+      return new Set(rows.map(row => row.name));
+    } catch {
+      return null;
+    }
+  }
+
+  addColumnIfMissing(tableName, columnName, columnDefinition) {
+    const safeTable = this.sanitizeIdentifier(tableName);
+    if (!safeTable) return;
+
+    const columns = this.getTableColumns(safeTable);
+    if (!columns || columns.has(columnName)) return;
+
+    try {
+      this.database.exec(`ALTER TABLE ${safeTable} ADD COLUMN ${columnDefinition}`);
+    } catch (error) {
+      const message = String(error?.message || error);
+      if (!message.includes('duplicate column name')) {
+        console.warn(`Schema migration warning (table=${safeTable}, column=${columnName}):`, message);
+      }
+    }
+  }
+
+  applySchemaMigrations() {
+    // leaked_passwords used to be a minimal table (hash_prefix, hash_suffix, count)
+    // in the legacy Flask implementation.
+    this.addColumnIfMissing('leaked_passwords', 'password_text', 'password_text TEXT');
+    this.addColumnIfMissing('leaked_passwords', 'sources', "sources TEXT DEFAULT '[]'");
+    this.addColumnIfMissing('leaked_passwords', 'date_first_seen', 'date_first_seen TEXT');
+    this.addColumnIfMissing('leaked_passwords', 'date_last_updated', 'date_last_updated TEXT');
+    this.addColumnIfMissing('leaked_passwords', 'confidence_score', 'confidence_score REAL DEFAULT 1.0');
+
+    // breach_sources additions
+    this.addColumnIfMissing('breach_sources', 'date_last_verified', 'date_last_verified TEXT');
+
+    // breach_stats schema sanity
+    this.addColumnIfMissing('breach_stats', 'total_passwords', 'total_passwords INTEGER');
+    this.addColumnIfMissing('breach_stats', 'total_breaches', 'total_breaches INTEGER');
+    this.addColumnIfMissing('breach_stats', 'last_updated', 'last_updated TEXT');
   }
 
   async loadBreachSources() {
@@ -979,6 +1061,11 @@ class BreachCheckerApp {
       this.searchPasswordRange(req, res);
     });
 
+    // Legacy endpoint (Flask/HIBP-style) kept for backwards compatibility
+    this.app.get('/api/range/:hashPrefix', (req, res) => {
+      this.searchPasswordRange(req, res);
+    });
+
     // Email search
     this.app.get('/api/email/:email', (req, res) => {
       if (!config.features.emailSearch) {
@@ -1022,6 +1109,11 @@ class BreachCheckerApp {
     // Get statistics
     this.app.get('/api/stats', (req, res) => {
       this.getStatistics(req, res);
+    });
+
+    // Legacy demo endpoint (from the original Flask app)
+    this.app.post('/api/add_passwords', (req, res) => {
+      this.addPasswordsLegacy(req, res);
     });
 
     // Search analytics
@@ -1877,6 +1969,82 @@ class BreachCheckerApp {
     }
   }
 
+  async addPasswordsLegacy(req, res) {
+    if (!config.features.demoMode && !config.features.passwordAddition) {
+      return res.status(503).json({ error: 'Password addition is disabled' });
+    }
+
+    const data = req.body;
+
+    if (!data || !Array.isArray(data.passwords)) {
+      return res.status(400).json({ error: 'Missing passwords field' });
+    }
+
+    try {
+      const upsert = this.database.prepare(`
+        INSERT INTO leaked_passwords (
+          hash_prefix,
+          hash_suffix,
+          password_text,
+          count,
+          sources,
+          date_first_seen,
+          confidence_score
+        )
+        VALUES (?, ?, ?, ?, ?, datetime('now'), 1.0)
+        ON CONFLICT(hash_prefix, hash_suffix) DO UPDATE SET
+          count = excluded.count,
+          password_text = COALESCE(excluded.password_text, leaked_passwords.password_text),
+          date_last_updated = datetime('now')
+      `);
+
+      let addedCount = 0;
+
+      const insertTx = this.database.transaction(passwords => {
+        for (const passwordEntry of passwords) {
+          let password;
+          let count = 1;
+
+          if (typeof passwordEntry === 'string') {
+            password = passwordEntry;
+          } else if (passwordEntry && typeof passwordEntry === 'object') {
+            password = passwordEntry.password;
+            count = Number.isFinite(passwordEntry.count) ? passwordEntry.count : parseInt(passwordEntry.count, 10) || 1;
+          }
+
+          if (!password || typeof password !== 'string') continue;
+
+          const hashFull = crypto.createHash('sha1').update(password, 'utf8').digest('hex').toUpperCase();
+          const hashPrefix = hashFull.slice(0, 5);
+          const hashSuffix = hashFull.slice(5);
+
+          upsert.run(hashPrefix, hashSuffix, null, count, '[]');
+          addedCount++;
+        }
+      });
+
+      insertTx(data.passwords);
+
+      const totalRow = this.database.prepare('SELECT COUNT(*) as total FROM leaked_passwords').get();
+      const total = totalRow?.total || 0;
+
+      this.database.prepare(`
+        UPDATE breach_stats
+        SET total_passwords = ?, last_updated = datetime('now')
+        WHERE id = 1
+      `).run(total);
+
+      res.json({
+        success: true,
+        added: addedCount,
+        total
+      });
+    } catch (error) {
+      console.error('Add passwords error:', error);
+      res.status(500).json({ error: 'Failed to add passwords' });
+    }
+  }
+
   async addBreachData(req, res) {
     // Admin endpoint - would need proper authentication in production
     const { type, data, source_id } = req.body;
@@ -1982,8 +2150,10 @@ class BreachCheckerApp {
     }, 24 * 60 * 60 * 1000); // Run daily
   }
 
-  start() {
-    this.app.listen(this.port, () => {
+  async start() {
+    await this.ready;
+
+    const server = this.app.listen(this.port, () => {
       console.log(`
 🔐 Breach Checker v3.0.0 - Comprehensive Breach Detection
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1995,8 +2165,17 @@ class BreachCheckerApp {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       `);
     });
+
+    server.on('error', error => {
+      console.error('❌ Server listen error:', error);
+      process.exit(1);
+    });
   }
 }
 
 // Start the application
-new BreachCheckerApp().start();
+const app = new BreachCheckerApp();
+app.start().catch(error => {
+  console.error('❌ Failed to start server:', error);
+  process.exit(1);
+});
